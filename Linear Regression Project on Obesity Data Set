@@ -1,0 +1,188 @@
+## Creating df 'obesity'
+obesity <- as.data.frame(read.csv("C:\\Users\\sarah\\OneDrive\\MS Data Science\\DSC 423\\Final Project\\ObesityDataSet_raw_and_data_sinthetic.csv", stringsAsFactors = TRUE))
+
+
+## Creating 'BMI' variable
+obesity$BMI <- obesity$Weight / (obesity$Height)^2
+
+
+## Creating discrete values for 'CALC' and 'CAEC'
+obesity$CALC <- as.numeric(obesity$CALC)
+obesity$CAEC <- as.numeric(obesity$CAEC)
+
+
+## View 'obesity' variables
+str(obesity)
+
+
+## Creating subset df with relevant variables
+d <- obesity[, -c(3,4,17)]
+plot(d)
+
+
+## Visualizations and Transformations
+summary(d$BMI)
+summary(log(d$BMI))
+
+
+par(mfrow=c(1,2))
+hist(d$BMI, breaks = 100)
+hist(log(d$BMI), breaks = 100)
+d$log_BMI <- log(d$BMI)
+
+
+
+
+summary(d$Age)
+summary(log(d$Age))
+
+
+
+par(mfrow=c(1,2))
+hist(d$Age, breaks = 100)
+hist(log(d$Age), breaks = 100)
+d$log_Age <- log(d$Age)
+
+
+
+
+plot(d$log_Age, d$log_BMI, main="log_Age vs log_BMI", xlab="log_Age", ylab="log_BMI")
+
+
+
+plot(d$Gender, d$log_BMI, main="Gender vs log_BMI", xlab="Gender", ylab="log_BMI")
+
+
+
+## Initial Model
+model <- lm(formula = log_BMI ~ log_Age + Gender + CALC + FAVC + FCVC + NCP + SCC + CH2O + family_history_with_overweight + FAF + TUE + CAEC + MTRANS + SMOKE, data = d)
+summary(model)
+
+
+## Multicollinearity check
+library(car)
+vif(model)
+
+
+## Stepwise regression
+library(MASS)
+step <- stepAIC(model, direction = "both")
+
+
+## First order model
+'Note: Gender variable is included due to use in interaction terms'
+model1 <- lm(log_BMI ~ log_Age + Gender + CALC + FAVC + FCVC + SCC + CH2O + family_history_with_overweight + FAF + TUE + CAEC + MTRANS, data = d)
+summary(model1)
+
+
+## Interaction Terms
+'Age interacted with Gender'
+summary(lm(log_BMI ~ log_Age + Gender + CALC + FAVC + FCVC + SCC + CH2O + family_history_with_overweight + FAF + TUE + CAEC + MTRANS + log_Age:Gender, data = d))
+
+
+#Vegetable consumption frequency interacted with eating between meals
+summary(lm(log_BMI ~ log_Age + Gender + CALC + FAVC + FCVC + SCC + CH2O + family_history_with_overweight + FAF + TUE + CAEC + MTRANS + FCVC:CAEC, data = d))
+
+
+#Age interacted with water consumption
+summary(lm(log_BMI ~ log_Age + Gender + CALC + FAVC + FCVC + SCC + CH2O + family_history_with_overweight + FAF + TUE + CAEC + MTRANS + log_Age:CH2O, data = d))
+
+
+#High caloric food interacted with eating between meals
+summary(lm(log_BMI ~ log_Age + Gender + CALC + FAVC + FCVC + SCC + CH2O + family_history_with_overweight + FAF + TUE + CAEC + MTRANS + FAVC:CAEC, data = d))
+
+
+#New model with interaction terms
+model2 <- lm(log_BMI ~ log_Age + Gender + CALC + FAVC + FCVC + SCC + CH2O + family_history_with_overweight + FAF + TUE + CAEC + MTRANS + log_Age:Gender + FCVC:CAEC + log_Age:CH2O + FAVC:CAEC, data = d)
+summary(model2)
+
+
+## Second Order Terms
+d$age_sq <- d$log_Age*d$log_Age
+d$calc_sq <- d$CALC*d$CALC
+d$FCVC_sq <- d$FCVC*d$FCVC
+d$CH2O_sq <- d$CH2O*d$CH2O
+d$FAF_sq <- d$FAF*d$FAF
+d$TUE_sq <- d$TUE*d$TUE
+d$CAEC_sq <- d$CAEC*d$CAEC
+
+model3 <- lm(log_BMI ~ log_Age + CALC + FAVC + FCVC + SCC + CH2O + family_history_with_overweight + FAF + TUE + CAEC + MTRANS + age_sq + calc_sq + FCVC_sq + CH2O_sq + FAF_sq + TUE_sq + CAEC_sq, data = d)
+summary(model3)
+
+
+
+## Model with non first order terms
+model4 <- lm(formula = log_BMI ~ log_Age + CALC + FAVC + FCVC + SCC + CH2O + family_history_with_overweight + FAF + TUE + CAEC + MTRANS + Gender + log_Age:Gender + log_Age:CH2O + FCVC:CAEC + FAVC:CAEC + age_sq + calc_sq + FCVC_sq + TUE_sq + CAEC_sq, data = d)
+summary(model4)
+
+vif(model4, type='predictor')
+
+
+## Calculate residuals 
+d$residuals_model5 <- residuals(model5) 
+par(mfrow=c(1,2)) 
+plot(d$log_Age, d$residuals_model5, main="Residuals vs log_Age (Model5)", xlab="log_Age", ylab="Residuals")
+hist(d$residuals_model5, breaks = 50, main="Histogram of Residuals (Model5_updated)", xlab="Residuals")
+
+
+d$fitted_model5 <- fitted(model5)
+plot(d$fitted_model5, d$residuals_model5, main = 'Residuals vs Fitted Values (Model5)', xlab = 'Fitted Values', ylab = 'Residuals')
+abline(h = 0, col = "red")
+'Heterodasticity confirmed by plot'
+
+
+## QQ Plot
+residuals_model5 <- residuals(model5)
+qqnorm(residuals_model5, main="Normal Q-Q Plot of Residuals (Model5)")
+qqline(residuals_model5, col = "red")
+'The residuals appear to be approximately normally distributed with some minor deviations at the tails'
+
+
+## Training and Testing
+library(caret)
+set.seed(123)
+trainIndex <- createDataPartition(d$log_BMI, p = .7, list = FALSE, times = 1)
+trainData <- d[ trainIndex,]
+testData  <- d[-trainIndex,]
+
+## Residual Dispersion
+hist(trainData$residuals, breaks = 50, main = "Histogram of Residuals (model5)", xlab = "Residuals")
+train_adjusted_r_squared <- summary(model5)$adj.r.squared
+train_mse <- mean(trainData$residuals^2)
+rss_test <- sum(testData$residuals^2)
+tss_test <- sum((log(testData$BMI) - mean(log(testData$BMI)))^2)
+test_adjusted_r_squared <- 1 - (rss_test/(nrow(testData) - length(model5$coefficients) - 1))/(tss_test/(nrow(testData) - 1))
+test_mse <- mean(testData$residuals^2)
+cat("Training Adjusted R-Squared: ", train_adjusted_r_squared, "\n")
+cat("Training MSE: ", train_mse, "\n")
+cat("Testing Adjusted R-Squared: ", test_adjusted_r_squared, "\n")
+cat("Testing MSE: ", test_mse, "\n")
+
+
+
+## Predictions and residuals for training data
+model5 <- lm(log_BMI ~ log_Age + CALC + FAVC + FCVC + SCC + CH2O + family_history_with_overweight + FAF + TUE + CAEC + MTRANS + Gender + log_Age:Gender + log_Age:CH2O + FCVC:CAEC + FAVC:CAEC + TUE_sq, data = trainData)
+trainData$predicted <- predict(model5, newdata = trainData)
+trainData$residuals <- residuals(model5)
+summary(lm(log_BMI ~ log_Age + CALC + FAVC + FCVC + SCC + CH2O + family_history_with_overweight + FAF + TUE + CAEC + MTRANS + Gender + log_Age:Gender + log_Age:CH2O + FCVC:CAEC + FAVC:CAEC + TUE_sq, data = trainData))
+
+
+## Predictions and residuals for testing data
+model5 <- lm(log_BMI ~ log_Age + CALC + FAVC + FCVC + SCC + CH2O + family_history_with_overweight + FAF + TUE + CAEC + MTRANS + Gender + log_Age:Gender + log_Age:CH2O + FCVC:CAEC + FAVC:CAEC + TUE_sq, data = testData)
+testData$predicted <- predict(model5, newdata = testData)
+testData$residuals <- testData$predicted - log(testData$BMI)
+summary(lm(log_BMI ~ log_Age + CALC + FAVC + FCVC + SCC + CH2O + family_history_with_overweight + FAF + TUE + CAEC + MTRANS + Gender + log_Age:Gender + log_Age:CH2O + FCVC:CAEC + FAVC:CAEC + TUE_sq, data = testData))
+
+
+# Plot residuals and predicted vs actual for training data
+par(mfrow=c(2,2))
+plot(trainData$predicted, trainData$residuals, main="Residuals vs Fitted Values (Training)", xlab="Fitted Values", ylab="Residuals")
+abline(h = 0, col = "red")
+plot(trainData$predicted, log(trainData$BMI), main="Predicted vs Actual (Training)", xlab="Predicted Values", ylab="Actual Values")
+abline(a = 0, b = 1, col = "red")
+plot(testData$predicted, testData$residuals, main="Residuals vs Fitted Values (Testing)", xlab="Fitted Values", ylab="Residuals")
+abline(h = 0, col = "red")
+plot(testData$predicted, log(testData$BMI), main="Predicted vs Actual (Testing)", xlab="Predicted Values", ylab="Actual Values")
+abline(a = 0, b = 1, col = "red")
+#We are not concerned about overfitting
+
