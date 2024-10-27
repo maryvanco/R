@@ -1,3 +1,4 @@
+
 ## Creating df 'obesity'
 obesity <- as.data.frame(read.csv("C:\\Users\\sarah\\OneDrive\\MS Data Science\\DSC 423\\Final Project\\ObesityDataSet_raw_and_data_sinthetic.csv", stringsAsFactors = TRUE))
 
